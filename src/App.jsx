@@ -28,6 +28,7 @@ const TTS_STATUS = {
 const pad = (n) => String(n).padStart(2, '0');
 
 const FLOWS_KEY = 'bardio.flows';
+const BT_DEVICE_KEY = 'bardio.btDeviceId';
 
 function loadFlows() {
   try {
@@ -186,6 +187,28 @@ export default function App() {
     notify(`Reading bulletin · ${headlines.length} stories` + (bt.connected ? ` · ${bt.name}` : ''), 5200);
   };
 
+  const connectToDevice = async (device) => {
+    btDeviceRef.current = device;
+    device.addEventListener('gattserverdisconnected', () => {
+      setBt((b) => ({ ...b, connected: false, connecting: false }));
+      notify(`${device.name || 'Device'} disconnected`);
+    });
+
+    const server = await device.gatt.connect();
+    let battery = null;
+    try {
+      const service = await server.getPrimaryService('battery_service');
+      const characteristic = await service.getCharacteristic('battery_level');
+      const value = await characteristic.readValue();
+      battery = value.getUint8(0);
+    } catch {
+      // device doesn't expose a standard battery service — that's fine
+    }
+
+    try { localStorage.setItem(BT_DEVICE_KEY, device.id); } catch { /* storage unavailable */ }
+    setBt({ connected: true, connecting: false, name: device.name || 'Unnamed device', battery });
+  };
+
   const reconnectDevice = async () => {
     if (!navigator.bluetooth) {
       notify('Web Bluetooth not supported in this browser');
@@ -197,26 +220,8 @@ export default function App() {
         acceptAllDevices: true,
         optionalServices: ['battery_service']
       });
-      btDeviceRef.current = device;
       notify(`Connecting to ${device.name || 'device'}…`);
-
-      device.addEventListener('gattserverdisconnected', () => {
-        setBt((b) => ({ ...b, connected: false, connecting: false }));
-        notify(`${device.name || 'Device'} disconnected`);
-      });
-
-      const server = await device.gatt.connect();
-      let battery = null;
-      try {
-        const service = await server.getPrimaryService('battery_service');
-        const characteristic = await service.getCharacteristic('battery_level');
-        const value = await characteristic.readValue();
-        battery = value.getUint8(0);
-      } catch {
-        // device doesn't expose a standard battery service — that's fine
-      }
-
-      setBt({ connected: true, connecting: false, name: device.name || 'Unnamed device', battery });
+      await connectToDevice(device);
       notify(`Connected to ${device.name || 'device'}`);
     } catch (err) {
       setBt((b) => ({ ...b, connecting: false }));
@@ -224,8 +229,24 @@ export default function App() {
     }
   };
 
+  // Auto-reconnect on load to a previously-granted device, without showing the picker.
+  useEffect(() => {
+    let savedId;
+    try { savedId = localStorage.getItem(BT_DEVICE_KEY); } catch { savedId = null; }
+    if (!savedId || !navigator.bluetooth || !navigator.bluetooth.getDevices) return;
+    navigator.bluetooth.getDevices()
+      .then((devices) => {
+        const device = devices.find((d) => d.id === savedId);
+        if (!device) return;
+        setBt((b) => ({ ...b, connecting: true }));
+        connectToDevice(device).catch(() => setBt((b) => ({ ...b, connecting: false })));
+      })
+      .catch(() => {});
+  }, []);
+
   const disconnectDevice = () => {
     const device = btDeviceRef.current;
+    try { localStorage.removeItem(BT_DEVICE_KEY); } catch { /* storage unavailable */ }
     if (device && device.gatt.connected) {
       device.gatt.disconnect();
     } else {

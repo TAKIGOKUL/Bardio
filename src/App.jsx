@@ -28,7 +28,10 @@ const TTS_STATUS = {
 const pad = (n) => String(n).padStart(2, '0');
 
 const FLOWS_KEY = 'bardio.flows';
+const SWITCHES_KEY = 'bardio.switches';
 const BT_DEVICE_KEY = 'bardio.btDeviceId';
+const ENGINE_KEY = 'bardio.engine';
+const WAKE_KEY = 'bardio.wake';
 
 function loadFlows() {
   try {
@@ -41,6 +44,17 @@ function loadFlows() {
   }
 }
 
+function loadSwitches() {
+  try {
+    const raw = localStorage.getItem(SWITCHES_KEY);
+    if (!raw) return DEFAULT_SWITCHES;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_SWITCHES;
+  } catch {
+    return DEFAULT_SWITCHES;
+  }
+}
+
 export default function App() {
   const [screen, setScreen] = useState('home');
   const [now, setNow] = useState(new Date());
@@ -49,10 +63,14 @@ export default function App() {
   const [voiceIdx, setVoiceIdx] = useState(0);
   const [tagIdx, setTagIdx] = useState(0);
   const [programState, setProgramState] = useState('idle');
-  const [engine, setEngine] = useState('System TTS');
-  const [wake, setWakeState] = useState(DEFAULT_WAKE);
+  const [engine, setEngine] = useState(() => {
+    try { return localStorage.getItem(ENGINE_KEY) || 'System TTS'; } catch { return 'System TTS'; }
+  });
+  const [wake, setWakeState] = useState(() => {
+    try { return localStorage.getItem(WAKE_KEY) || DEFAULT_WAKE; } catch { return DEFAULT_WAKE; }
+  });
   const [flows, setFlows] = useState(loadFlows);
-  const [switches, setSwitches] = useState(DEFAULT_SWITCHES);
+  const [switches, setSwitches] = useState(loadSwitches);
   const [newsFilter, setNewsFilter] = useState('KERALA');
   const [newsIdx, setNewsIdx] = useState(0);
   const [newsItems, setNewsItems] = useState([]);
@@ -148,6 +166,18 @@ export default function App() {
     try { localStorage.setItem(FLOWS_KEY, JSON.stringify(flows)); } catch { /* storage unavailable */ }
   }, [flows]);
 
+  useEffect(() => {
+    try { localStorage.setItem(SWITCHES_KEY, JSON.stringify(switches)); } catch { /* storage unavailable */ }
+  }, [switches]);
+
+  useEffect(() => {
+    try { localStorage.setItem(ENGINE_KEY, engine); } catch { /* storage unavailable */ }
+  }, [engine]);
+
+  useEffect(() => {
+    try { localStorage.setItem(WAKE_KEY, wake); } catch { /* storage unavailable */ }
+  }, [wake]);
+
   const go = (target) => () => setScreen(target);
 
   const countdown = useMemo(() => {
@@ -231,6 +261,8 @@ export default function App() {
 
   // Auto-reconnect on load to a previously-granted device, without showing the picker.
   useEffect(() => {
+    const autoConnectOn = switches.find((s) => s.label === 'Bluetooth auto-connect')?.on;
+    if (!autoConnectOn) return;
     let savedId;
     try { savedId = localStorage.getItem(BT_DEVICE_KEY); } catch { savedId = null; }
     if (!savedId || !navigator.bluetooth || !navigator.bluetooth.getDevices) return;

@@ -18,6 +18,13 @@ import News from './screens/News.jsx';
 
 const DEFAULT_WAKE = 'Hey Bardio';
 
+const TTS_STATUS = {
+  spoken: 'System TTS',
+  'no-voices': 'no system voice installed',
+  error: 'speech failed',
+  unsupported: 'speech not supported here'
+};
+
 const pad = (n) => String(n).padStart(2, '0');
 
 export default function App() {
@@ -101,26 +108,29 @@ export default function App() {
 
   const speakNow = () => notify(`Listening for "${wake}"…`);
 
-  const runMorning = () => {
-    const spoken = engine === 'System TTS' && speak('Good morning. Here is your BARDio morning brief.');
-    notify(
-      spoken
-        ? 'Morning brief running · System TTS'
-        : 'Morning brief running' + (bt.connected ? ` · speaking to ${bt.name}` : ''),
-      5200
-    );
+  const runMorning = async () => {
+    if (engine === 'System TTS') {
+      const status = await speak('Good morning. Here is your BARDio morning brief.');
+      notify('Morning brief running · ' + TTS_STATUS[status], 5200);
+      return;
+    }
+    notify('Morning brief running' + (bt.connected ? ` · speaking to ${bt.name}` : ''), 5200);
   };
 
-  const readNews = () => {
+  const readNews = async () => {
     if (!headlines.length) { notify('No headlines to read'); return; }
-    const lines = headlines.slice(0, 4).map((h) => h.title).join('. ');
-    const spoken = engine === 'System TTS' && speak(`${newsFilter} bulletin. ${lines}`);
-    notify(
-      spoken
-        ? `Reading bulletin · ${headlines.length} stories · System TTS`
-        : `Reading bulletin · ${headlines.length} stories` + (bt.connected ? ` · ${bt.name}` : ''),
-      5200
-    );
+    if (engine === 'System TTS') {
+      const lines = headlines.slice(0, 4).map((h) => h.title).join('. ');
+      const status = await speak(`${newsFilter} bulletin. ${lines}`);
+      notify(
+        status === 'spoken'
+          ? `Reading bulletin · ${headlines.length} stories · System TTS`
+          : `Reading bulletin · ${TTS_STATUS[status]}`,
+        5200
+      );
+      return;
+    }
+    notify(`Reading bulletin · ${headlines.length} stories` + (bt.connected ? ` · ${bt.name}` : ''), 5200);
   };
 
   const reconnectDevice = async () => {

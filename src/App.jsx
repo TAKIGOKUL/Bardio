@@ -107,6 +107,30 @@ export default function App() {
 
   useEffect(() => { loadNews(newsFilter); }, [newsFilter]);
 
+  const announcedRef = useRef(new Set());
+
+  const announceFlow = async (f) => {
+    const line = `${f.name} workflow starting now. ${flowDetail(f.actions)}`;
+    if (engine === 'System TTS') {
+      const status = await speak(line);
+      notify(status === 'spoken' ? `${f.name} workflow · System TTS` : `${f.name} workflow · ${TTS_STATUS[status]}`, 5200);
+      return;
+    }
+    notify(`${f.name} workflow starting` + (bt.connected ? ` · speaking to ${bt.name}` : ''), 5200);
+  };
+
+  useEffect(() => {
+    const hhmm = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    const dateKey = now.toDateString();
+    flows.forEach((f) => {
+      if (!f.enabled || f.next !== hhmm) return;
+      const key = dateKey + '|' + f.name;
+      if (announcedRef.current.has(key)) return;
+      announcedRef.current.add(key);
+      announceFlow(f);
+    });
+  }, [now, flows]);
+
   useEffect(() => {
     try { localStorage.setItem(FLOWS_KEY, JSON.stringify(flows)); } catch { /* storage unavailable */ }
   }, [flows]);

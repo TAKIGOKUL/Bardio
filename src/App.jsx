@@ -27,6 +27,19 @@ const TTS_STATUS = {
 
 const pad = (n) => String(n).padStart(2, '0');
 
+const FLOWS_KEY = 'bardio.flows';
+
+function loadFlows() {
+  try {
+    const raw = localStorage.getItem(FLOWS_KEY);
+    if (!raw) return DEFAULT_FLOWS;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : DEFAULT_FLOWS;
+  } catch {
+    return DEFAULT_FLOWS;
+  }
+}
+
 export default function App() {
   const [screen, setScreen] = useState('home');
   const [now, setNow] = useState(new Date());
@@ -37,7 +50,7 @@ export default function App() {
   const [programState, setProgramState] = useState('idle');
   const [engine, setEngine] = useState('System TTS');
   const [wake, setWakeState] = useState(DEFAULT_WAKE);
-  const [flows, setFlows] = useState(DEFAULT_FLOWS);
+  const [flows, setFlows] = useState(loadFlows);
   const [switches, setSwitches] = useState(DEFAULT_SWITCHES);
   const [newsFilter, setNewsFilter] = useState('KERALA');
   const [newsIdx, setNewsIdx] = useState(0);
@@ -93,6 +106,10 @@ export default function App() {
   };
 
   useEffect(() => { loadNews(newsFilter); }, [newsFilter]);
+
+  useEffect(() => {
+    try { localStorage.setItem(FLOWS_KEY, JSON.stringify(flows)); } catch { /* storage unavailable */ }
+  }, [flows]);
 
   const go = (target) => () => setScreen(target);
 

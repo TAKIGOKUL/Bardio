@@ -76,9 +76,9 @@ export const DEFAULT_SWITCHES = [
 ];
 
 export const ENGINES = [
-  { name: 'Coqui XTTS v2', short: 'Coqui', note: 'LAN server · jenny', glyph: 'lan' },
-  { name: 'ElevenLabs', short: 'ElevenLabs', note: 'Cloud · George', glyph: 'cloud' },
-  { name: 'System TTS', short: 'System', note: 'Offline fallback', glyph: 'chip' }
+  { name: 'System TTS', short: 'System', note: 'Browser speech synthesis', glyph: 'chip' },
+  { name: 'Coqui XTTS v2', short: 'Coqui', note: 'LAN server · jenny (not connected)', glyph: 'lan' },
+  { name: 'ElevenLabs', short: 'ElevenLabs', note: 'Cloud · George (not connected)', glyph: 'cloud' }
 ];
 
 export const TAGS = [
@@ -90,17 +90,9 @@ export const TAGS = [
   { place: 'Bed frame', workflow: 'SLEEP', key: 'sleep' }
 ];
 
-export const NEWS = [
-  { topic: 'KERALA', title: 'Kochi metro extension opens two more stations this month', source: 'Desk', length: '35 sec read', time: '06:20' },
-  { topic: 'KERALA', title: 'Monsoon reservoir levels steady across the district', source: 'Weather', length: '30 sec read', time: '05:55' },
-  { topic: 'INDIA', title: 'Rail operators expand overnight freight corridors', source: 'Wire', length: '1 min read', time: '05:48' },
-  { topic: 'WORLD', title: 'Shipping lanes reopen after week-long port backlog', source: 'Global', length: '45 sec read', time: '05:30' },
-  { topic: 'TECH', title: 'On-device speech models cut assistant latency below 200 ms', source: 'Index', length: '40 sec read', time: '05:02' }
-];
-
 export const NEWS_TABS = ['KERALA', 'INDIA', 'WORLD', 'TECH'];
 
-export const TITLES = (device) => ({
+export const TITLES = () => ({
   home:     { t: 'BARDio', s: null },
   news:     { t: 'News', s: 'Morning bulletin · Kerala, India, world, tech' },
   flows:    { t: 'Workflows', s: null },

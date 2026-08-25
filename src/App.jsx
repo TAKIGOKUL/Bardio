@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import './App.css';
 import {
   ACCENT, TITLES, flowDetail,
-  DEFAULT_FLOWS, DEFAULT_SWITCHES, ENGINES, TAGS, NEWS
+  DEFAULT_FLOWS, DEFAULT_SWITCHES, ENGINES, TAGS
 } from './data.js';
+import { fetchNews } from './news.js';
+import { speak } from './tts.js';
 import ScreenHeader from './components/ScreenHeader.jsx';
 import BottomNav from './components/BottomNav.jsx';
 import BulletToast from './components/BulletToast.jsx';
@@ -14,7 +16,6 @@ import Nfc from './screens/Nfc.jsx';
 import Settings from './screens/Settings.jsx';
 import News from './screens/News.jsx';
 
-const DEVICE_NAME = 'Sanyo M-9998';
 const DEFAULT_WAKE = 'Hey Bardio';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -27,18 +28,23 @@ export default function App() {
   const [voiceIdx, setVoiceIdx] = useState(0);
   const [tagIdx, setTagIdx] = useState(0);
   const [programState, setProgramState] = useState('idle');
-  const [engine, setEngine] = useState('Coqui XTTS v2');
+  const [engine, setEngine] = useState('System TTS');
   const [wake, setWakeState] = useState(DEFAULT_WAKE);
   const [flows, setFlows] = useState(DEFAULT_FLOWS);
   const [switches, setSwitches] = useState(DEFAULT_SWITCHES);
   const [newsFilter, setNewsFilter] = useState('KERALA');
   const [newsIdx, setNewsIdx] = useState(0);
+  const [newsItems, setNewsItems] = useState([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [newsError, setNewsError] = useState(null);
   const [toast, setToast] = useState(null);
   const [bt, setBt] = useState({ connected: false, connecting: false, name: null, battery: null });
 
   const toastTimer = useRef(null);
   const toastSeq = useRef(0);
   const btDeviceRef = useRef(null);
+  const newsCache = useRef({});
+  const newsReqId = useRef(0);
 
   const notify = (text, duration = 4600) => {
     toastSeq.current += 1;
@@ -55,6 +61,32 @@ export default function App() {
     return () => { clearInterval(t1); clearInterval(t3); };
   }, []);
 
+  const loadNews = (topic) => {
+    if (newsCache.current[topic]) {
+      setNewsItems(newsCache.current[topic]);
+      setNewsLoading(false);
+      setNewsError(null);
+      return;
+    }
+    const reqId = ++newsReqId.current;
+    setNewsLoading(true);
+    setNewsError(null);
+    fetchNews(topic)
+      .then((items) => {
+        if (reqId !== newsReqId.current) return;
+        newsCache.current[topic] = items;
+        setNewsItems(items);
+        setNewsLoading(false);
+      })
+      .catch(() => {
+        if (reqId !== newsReqId.current) return;
+        setNewsError('Could not load headlines');
+        setNewsLoading(false);
+      });
+  };
+
+  useEffect(() => { loadNews(newsFilter); }, [newsFilter]);
+
   const go = (target) => () => setScreen(target);
 
   const countdown = useMemo(() => {
@@ -65,11 +97,31 @@ export default function App() {
     return pad(Math.floor(diff / 3600)) + ':' + pad(Math.floor(diff / 60) % 60);
   }, [now]);
 
-  const titles = TITLES(DEVICE_NAME);
+  const titles = TITLES();
 
   const speakNow = () => notify(`Listening for "${wake}"…`);
-  const runMorning = () => notify(`Morning brief running · speaking to ${bt.name || DEVICE_NAME}`, 5200);
-  const readNews = () => notify(`Reading bulletin · 4 stories · ${bt.name || DEVICE_NAME}`, 5200);
+
+  const runMorning = () => {
+    const spoken = engine === 'System TTS' && speak('Good morning. Here is your BARDio morning brief.');
+    notify(
+      spoken
+        ? 'Morning brief running · System TTS'
+        : 'Morning brief running' + (bt.connected ? ` · speaking to ${bt.name}` : ''),
+      5200
+    );
+  };
+
+  const readNews = () => {
+    if (!headlines.length) { notify('No headlines to read'); return; }
+    const lines = headlines.slice(0, 4).map((h) => h.title).join('. ');
+    const spoken = engine === 'System TTS' && speak(`${newsFilter} bulletin. ${lines}`);
+    notify(
+      spoken
+        ? `Reading bulletin · ${headlines.length} stories · System TTS`
+        : `Reading bulletin · ${headlines.length} stories` + (bt.connected ? ` · ${bt.name}` : ''),
+      5200
+    );
+  };
 
   const reconnectDevice = async () => {
     if (!navigator.bluetooth) {
@@ -115,7 +167,7 @@ export default function App() {
       device.gatt.disconnect();
     } else {
       setBt((b) => ({ ...b, connected: false, connecting: false }));
-      notify(bt.name ? `${bt.name} disconnected` : `${DEVICE_NAME} disconnected`);
+      notify(bt.connected && bt.name ? `${bt.name} disconnected` : 'No device connected');
     }
   };
 
@@ -162,14 +214,12 @@ export default function App() {
     toggle: () => setSwitches((ss) => ss.map((x) => x.label === sw.label ? { ...x, on: !x.on } : x))
   }));
 
-  const headlines = NEWS
-    .filter((n) => n.topic === newsFilter)
-    .map((n, i) => ({
-      ...n,
-      selected: newsIdx === i,
-      tagColor: newsIdx === i ? ACCENT : '#666',
-      select: () => setNewsIdx(i)
-    }));
+  const headlines = newsItems.map((n, i) => ({
+    ...n,
+    selected: newsIdx === i,
+    tagColor: newsIdx === i ? ACCENT : '#666',
+    select: () => setNewsIdx(i)
+  }));
 
   const title = titles[screen];
   const pageSub = screen === 'flows'
@@ -200,7 +250,7 @@ export default function App() {
         {screen === 'home' && (
           <Home
             device={{
-              name: bt.name || DEVICE_NAME,
+              name: bt.connected ? bt.name : 'No device connected',
               status: bt.connecting
                 ? 'Bluetooth · Connecting…'
                 : bt.connected
@@ -246,7 +296,7 @@ export default function App() {
         )}
         {screen === 'settings' && (
           <Settings
-            device={DEVICE_NAME}
+            device={bt.connected ? bt.name : 'No device connected'}
             wakeInput={wake}
             setWake={(ev) => setWakeState(ev.target.value)}
             engines={engines}
@@ -259,6 +309,9 @@ export default function App() {
             setNewsFilter={(f) => { setNewsFilter(f); setNewsIdx(0); }}
             headlines={headlines}
             onRead={readNews}
+            loading={newsLoading}
+            error={newsError}
+            onRetry={() => { delete newsCache.current[newsFilter]; loadNews(newsFilter); }}
           />
         )}
       </main>

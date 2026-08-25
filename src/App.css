@@ -523,3 +523,23 @@
 /* ---------- news ---------- */
 
 .news-read-btn { align-self: center; }
+.primary-btn:disabled { opacity: 0.4; }
+
+.news-row { text-decoration: none; color: inherit; }
+
+.news-status { font-size: 12.5px; color: var(--fg-muted); text-align: center; padding: 8px 0; }
+.news-status-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.secondary-btn {
+  font-size: 13px;
+  color: var(--fg);
+  background: var(--card);
+  border-radius: var(--r-full);
+  padding: 11px 20px;
+}

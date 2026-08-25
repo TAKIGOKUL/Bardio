@@ -107,6 +107,18 @@ export default function App() {
 
   useEffect(() => { loadNews(newsFilter); }, [newsFilter]);
 
+  const newsFilterRef = useRef(newsFilter);
+  useEffect(() => { newsFilterRef.current = newsFilter; }, [newsFilter]);
+
+  useEffect(() => {
+    const REFRESH_MS = 6 * 60 * 60 * 1000;
+    const id = setInterval(() => {
+      newsCache.current = {};
+      loadNews(newsFilterRef.current);
+    }, REFRESH_MS);
+    return () => clearInterval(id);
+  }, []);
+
   const announcedRef = useRef(new Set());
 
   const announceFlow = async (f) => {
